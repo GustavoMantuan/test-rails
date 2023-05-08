@@ -1,69 +1,97 @@
-# syntax = docker/dockerfile:1
+# syntax=docker/dockerfile:1
 
-# Make sure RUBY_VERSION matches the Ruby version in .ruby-version and Gemfile
 ARG RUBY_VERSION=3.2.2
-FROM ruby:$RUBY_VERSION-slim as base
 
-# Rails app lives here
+FROM ruby:${RUBY_VERSION}-slim as base
+
 WORKDIR /rails
 
-# Set production environment
-ENV RAILS_ENV="production" \
-    BUNDLE_WITHOUT="development:test" \
-    BUNDLE_DEPLOYMENT="1"
-
-# Update gems and bundler
-RUN gem update --system --no-document && \
-    gem install -N bundler
+ENV RAILS_ENV=production \
+    LANG=C.UTF-8 \
+    BUNDLE_JOBS=4 \
+    BUNDLE_RETRY=3 \
+    BUNDLE_PATH="/usr/local/bundle"
 
 
 # Throw-away build stage to reduce size of final image
 FROM base as build
 
 # Install packages needed to build gems
-RUN apt-get update -qq && \
-    apt-get install --no-install-recommends -y build-essential libpq-dev libvips
+# This example intentionally does not require or install node.js
+
+RUN --mount=type=cache,target=/var/cache/apt \
+  --mount=type=cache,target=/var/lib/apt,sharing=locked \
+  --mount=type=tmpfs,target=/var/log \
+  rm -f /etc/apt/apt.conf.d/docker-clean; \
+  echo 'Binary::apt::APT::Keep-Downloaded-Packages "true";' > /etc/apt/apt.conf.d/keep-cache; \
+  apt-get update -qq \
+  && apt-get install -yq --no-install-recommends \
+    build-essential \
+    gnupg2 \
+    libpq-dev
+
+RUN gem update --system && gem install bundler
 
 # Install application gems
-COPY --link Gemfile Gemfile.lock ./
-RUN bundle install && \
-    bundle exec bootsnap precompile --gemfile && \
-    rm -rf ~/.bundle/ $BUNDLE_PATH/ruby/*/cache $BUNDLE_PATH/ruby/*/bundler/gems/*/.git
+COPY Gemfile Gemfile.lock ./
+
+# TODO: consolidate bundle config better, currently split between ENV and `bundle config`
+RUN bundle config frozen true \
+ && bundle config jobs 4 \
+ && bundle config deployment true \
+ && bundle config without 'development test' \
+ && bundle install \
+ && bundle exec bootsnap precompile --gemfile
 
 # Copy application code
-COPY --link . .
+COPY . .
 
 # Precompile bootsnap code for faster boot times
 RUN bundle exec bootsnap precompile app/ lib/
 
+# Precompile assets
+# SECRET_KEY_BASE or RAILS_MASTER_KEY is required in production, but we don't
+# want real secrets in the image or image history. The real secret is passed in
+# at run time
+ARG SECRET_KEY_BASE=fakekeyforassets
+
+# TODO: This will work in Rails 7.1
 # Precompiling assets for production without requiring secret RAILS_MASTER_KEY
+# RUN SECRET_KEY_BASE_DUMMY=1 ./bin/rails assets:precompile
 
 # Final stage for app image
 FROM base
 
 # Install packages needed for deployment
-RUN apt-get update -qq && \
-    apt-get install --no-install-recommends -y imagemagick libvips postgresql-client && \
-    rm -rf /var/lib/apt/lists /var/cache/apt/archives
-
-# Run and own the application files as a non-root user for security
-ARG UID=1000 \
-    GID=1000
-RUN groupadd -f -g $GID rails && \
-    useradd -u $UID -g $GID rails --home /rails --shell /bin/bash
-USER rails:rails
+RUN --mount=type=cache,target=/var/cache/apt \
+  --mount=type=cache,target=/var/lib/apt,sharing=locked \
+  --mount=type=tmpfs,target=/var/log \
+  rm -f /etc/apt/apt.conf.d/docker-clean; \
+  echo 'Binary::apt::APT::Keep-Downloaded-Packages "true";' > /etc/apt/apt.conf.d/keep-cache; \
+  apt-get update -qq \
+  && apt-get install -yq --no-install-recommends \
+  libpq-dev
 
 # Copy built artifacts: gems, application
 COPY --from=build /usr/local/bundle /usr/local/bundle
-COPY --from=build --chown=rails:rails /rails /rails
+COPY --from=build /rails /rails
 
-# Deployment options
-ENV RAILS_LOG_TO_STDOUT="1" \
-    RAILS_SERVE_STATIC_FILES="true"
+# Run and own only the runtime files as a non-root user for security
+RUN useradd rails --home /rails --shell /bin/bash && \
+    chown -R rails:rails db log storage tmp
+USER rails:rails
 
+# TODO: migrate/consolidate to have all database migrations in here
 # Entrypoint prepares the database.
-ENTRYPOINT ["/rails/bin/docker-entrypoint"]
+# ENTRYPOINT ["/rails/bin/docker-entrypoint"]
 
-# Start the server by default, this can be overwritten at runtime
+# Run database migrations when deploying to Render. It is not great, maybe there's a better way?
+# https://community.render.com/t/release-command-for-db-migrations/247/6
+ARG RENDER
+ARG DATABASE_URL
+ARG SECRET_KEY_BASE=992ba4db4ef6a7beb43b8f84d7a2864aace548bb86a95dfd36667ad55c67bce150d0203899d1b6882cebae2ef9feb579b2bc767dd7e5857d3c4be36ea550cce9
+RUN if [ -z "$RENDER" ]; then echo "var is unset"; else bin/rails db:migrate; fi
+
+# Start Server
 EXPOSE 3000
-CMD ["./bin/rails", "server"]
+CMD ["bundle", "exec", "puma", "-C", "config/puma.rb"]

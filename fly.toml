@@ -1,4 +1,4 @@
-# fly.toml app configuration file generated for still-butterfly-5075 on 2023-05-08T16:28:03-03:00
+# fly.toml app configuration file generated for still-butterfly-5075 on 2023-05-08T18:29:53-03:00
 #
 # See https://fly.io/docs/reference/configuration/ for information about how to use this file.
 #
@@ -6,9 +6,8 @@
 app = "still-butterfly-5075"
 primary_region = "gru"
 
-[build]
-    [build.args]
-        RUBY_VERSION = "3.2.2"
+[deploy]
+  release_command = "bin/rails db:prepare"
 
 [http_service]
   internal_port = 3000
@@ -19,6 +18,3 @@ primary_region = "gru"
 [[statics]]
   guest_path = "/rails/public"
   url_prefix = "/"
-
-[deploy]
-   release_command = "bin/rails db:prepare"
