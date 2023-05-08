@@ -89,7 +89,7 @@ USER rails:rails
 ARG RENDER
 ARG DATABASE_URL
 ARG SECRET_KEY_BASE
-RUN bin/rails db:migrate
+RUN bin/rails db:migrate;
 
 # Start Server
 EXPOSE 3000
