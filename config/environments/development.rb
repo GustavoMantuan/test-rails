@@ -77,4 +77,5 @@ Rails.application.configure do
   # config.action_cable.disable_request_forgery_protection = true
   config.action_cable.disable_request_forgery_protection = true
   config.hosts << "mysite-94ui.onrender.com"
+  config.hosts << "flexhirewebhooks-gustavomantuan10.b4a.run"
 end
