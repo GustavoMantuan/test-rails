@@ -1,0 +1,21 @@
+# fly.toml app configuration file generated for still-butterfly-5075 on 2023-05-08T16:28:03-03:00
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
+app = "still-butterfly-5075"
+primary_region = "gru"
+
+[build]
+    [build.args]
+        RUBY_VERSION = "3.0.3"
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  auto_stop_machines = true
+  auto_start_machines = true
+
+[[statics]]
+  guest_path = "/rails/public"
+  url_prefix = "/"
