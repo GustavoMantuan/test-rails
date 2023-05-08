@@ -1,11 +1,11 @@
 # frozen_string_literal: true
 
 Rails.application.routes.draw do
-  get 'welcome/index'
+  namespace :webhooks do
+    # /webhooks/flexhire routed to our Webhooks::FlexhireController
+    resource :flexhire, controller: :flexhire, only: [:create]
 
-  resources :articles do
-    resources :comments
+    #ws so the next app can listen to updates
+    mount ActionCable.server => '/cable'
   end
-
-  root 'welcome#index'
 end
