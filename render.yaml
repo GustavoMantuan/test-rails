@@ -1,16 +1,16 @@
 databases:
-  - name: mysite
-    databaseName: mysite
-    user: mysite
+  - name: flexhire
+    databaseName: flexhiredb
+    user: flexhire
     plan: free
 
 
 services:
   - type: web
-    name: mysite
+    name: flexhire
     env: docker
     dockerfilePath: ./production.Dockerfile
-    repo: https://github.com/ryanwi/rails7-on-docker
+    repo: https://github.com/GustavoMantuan/test-rails
     region: oregon
     branch: main
     plan: free

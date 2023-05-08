@@ -3,7 +3,7 @@
 ARG RUBY_VERSION=3.2.2
 
 FROM ruby:${RUBY_VERSION}-slim
-
+WORKDIR /test-rails
 # OS Level Dependencies
 RUN --mount=type=cache,target=/var/cache/apt \
   --mount=type=cache,target=/var/lib/apt,sharing=locked \
@@ -21,13 +21,13 @@ RUN --mount=type=cache,target=/var/cache/apt \
     libvips \
     curl
 
-ENV LANG=C.UTF-8 \
-  BUNDLE_JOBS=4 \
-  BUNDLE_RETRY=3
-  
-RUN gem update --system && gem install bundler
+COPY Gemfile /test-rails/Gemfile
+COPY Gemfile.lock /test-rails/Gemfile.lock
 
-WORKDIR /usr/src/app
+RUN gem update --system && gem install rails bundler
+RUN bundle install
+
+COPY . .
 
 EXPOSE 3000
 
