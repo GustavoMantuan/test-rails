@@ -35,4 +35,3 @@ class Webhooks::FlexhireController < Webhooks::BaseController
     @payload ||= request.body.read
   end
 end
-
